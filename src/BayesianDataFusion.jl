@@ -14,6 +14,7 @@ include("macau_blocked.jl")
 include("macau_vb.jl")
 include("macau_hmc.jl")
 include("macau_sgd.jl")
+include("VBMF.jl")
 
 include("data_reading.jl")
 
