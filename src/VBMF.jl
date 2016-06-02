@@ -40,13 +40,18 @@ function update_prior!(alpha, phi, Am, Av, Um, Uv, F::SparseMatrixCSC)
   K,I = size(Um)
   M,_ = size(Am)
   for k=1:K
-    alpha[k] = I./sum((Uv[k,:] - Am[:,k]' * F).^2 + Uv[k,:] +  Av[:,k]' * (F.^2))
+    alpha[k] = I./sum((Um[k,:] - Am[:,k]' * F).^2 + Uv[k,:] +  Av[:,k]' * (F.^2))
     phi[k] = M./sum(Am[:,k].^2 + Av[:,k])
   end
 end
 
 function pred(r::Relation, probe_vec, U, V)
-  return vec(sum(U[:,probe_vec[:,1]]' * V[:,probe_vec[:,2]],1)) + r.model.mean_value
+  N = size(probe_vec,1)
+  ret = zeros(N)
+  for i = 1:N
+    ret[i] = dot(U[:,r.test_vec[i,1]],V[:,r.test_vec[i,2]])
+  end
+  return ret
 end
 
 function VBMF(data::RelationData;
@@ -116,10 +121,12 @@ function VBMF(data::RelationData;
     update_prior!(beta, phiB, Bm, Bv, Vm, Vv, G)
 
     probe_rat = pred(rel, rel.test_vec, Um,Vm)
+    #print ("Calc=", Um[:,rel.test_vec[1,1]]' * Vm[:,rel.test_vec[1,2]],"\n")
+    #print("Prob_rat = ", probe_rat[1],"\n")
     rmse = haveTest ? sqrt(mean( (rel.test_vec[:,end] - probe_rat) .^ 2 )) : NaN
 
     if verbose
-      print("RMSE=",rmse,"\t|Res|=",vecnorm(R),"\n")
+      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)),"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"|",alpha,"|",beta, "\n")
     end
   end
 
