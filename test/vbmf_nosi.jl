@@ -12,5 +12,5 @@ rd = RelationData(Y, class_cut = 0.5)
 #assignToTest!(rd.relations[1], 2)
 
 # running the data
-result = VBMF(rd;num_latent=1, verbose = true)
+result = VBMF(rd;num_latent=1, niter=20, verbose = true)
 
