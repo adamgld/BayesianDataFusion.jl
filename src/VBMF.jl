@@ -7,13 +7,20 @@ function update_latent!(R::SparseMatrixCSC, Um, Uv, alpha, tau::Float64,Vm, Vv, 
   for i = 1:I
     for k = 1:K
       tmp = Um[k,i]
-      Uv[k,i] = 1/(alpha[k] + tau * sum(Vm[k,:].^2 + Vv[k,:]))
+      Uvtmp = 0
+      for idx in R.colptr[i]:(R.colptr[i+1]-1)
+          j = Js[idx]
+          Uvtmp += Vm[k,j].^2 + Vv[k,j]
+      end
+      Uv[k,i] = 1/(alpha[k] + tau * Uvtmp)
+
       theta = sum(alpha[k] * Am[:,k]' * F[:,i]) 
 
       for idx in R.colptr[i]:(R.colptr[i+1]-1)
           j = Js[idx]
           theta += tau * (R.nzval[idx] + Um[k,i]*Vm[k,j]).*Vm[k,j]
       end
+#      print("theta = ", theta,"\n")
 
       Um[k,i] = Uv[k,i] * theta
 
@@ -71,7 +78,7 @@ function VBMF(data::RelationData;
   I=maximum(Is)
   J=maximum(Js)
   tau = 1.50 #
-  tau = 50.0
+  #tau = 50.0
 
   n = Normal(0,1)
   Um = 0.3 * rand(n,K,I)

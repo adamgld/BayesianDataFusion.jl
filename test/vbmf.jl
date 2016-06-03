@@ -91,3 +91,26 @@ BayesianDataFusion.update_link!(UR, Am, Av, phi, alpha, F,Fnormsq)
 @test_approx_eq Am [0.75 0.2625]
 @test_approx_eq UR [0.0875 0.0875 0.0875]
 
+#STRONGER
+#Testing update_latent! without side-information
+I = [1,2,3,3]
+J = [3,1,1,2]
+V = [1.0,2.0,1.0,2.0]
+R = sparse(J,I,V)
+Um = [0.1, 0.2, 0.3]'
+Uv = ones(1,3)
+Vm = [0.4, 0.5, 0.6]'
+Vv = [0.5, 0.2, 0.5]'
+tau = 2.0
+alpha = 1.1 * ones(1,1)
+Am = zeros(2,1)
+F = spzeros(2,3)
+BayesianDataFusion.update_latent!(R, Um, Uv, alpha, tau, Vm, Vv, Am, F)
+print(Uv,"\n")
+#@test_approx_eq Uv      [1.0/7.0 1.0/7.0 1.0/7.0]
+@test_approx_eq Um      [2.0/7.0 3.0/7.0 5.0/7.0]
+@test_approx_eq R[3,1]  2.0 - 2.0/7.0
+@test_approx_eq R[1,2]  3.0 - 3.0/7.0
+@test_approx_eq R[1,3]  2.0 - 5.0/7.0
+@test_approx_eq R[2,3]  3.0 - 5.0/7.0
+

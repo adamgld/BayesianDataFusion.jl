@@ -8,8 +8,8 @@ data   = matread("$pkgdir/data/movielens_1m.mat")
 print("Loaded!")
 
 ## setup entities, assigning side information through optional argument F
-users  = Entity("users")#,  F=data["Fu"]);
-movies = Entity("movies")#, F=data["Fv"]);
+users  = Entity("users",  F=data["Fu"]);
+movies = Entity("movies", F=data["Fv"]);
 
 ## setup the relation between users and movies, data from sparse matrix data["X"]
 ## first element in '[users, movies]' corresponds to rows and second to columns of data["X"]

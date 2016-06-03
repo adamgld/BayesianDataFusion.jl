@@ -31,5 +31,5 @@ rd = RelationData(rel)
 assignToTest!(rd.relations[1], 100)
 
 # running the data
-result = VBMF(rd;num_latent=2, niter=100, verbose = true)
+result = VBMF(rd;num_latent=4, niter=100, verbose = true)
 
