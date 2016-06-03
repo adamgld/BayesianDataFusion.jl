@@ -3,22 +3,23 @@ export VBMF
 function update_latent!(R::SparseMatrixCSC, Um, Uv, alpha, tau::Float64,Vm, Vv, Am::Matrix{Float64}, F::SparseMatrixCSC)
   K,I = size(Um)
   _,J = size(Vm)
-  Is,Js = findn(R)
+  Js,_ = findn(R)
   for i = 1:I
     for k = 1:K
       tmp = Um[k,i]
       Uv[k,i] = 1/(alpha[k] + tau * sum(Vm[k,:].^2 + Vv[k,:]))
       theta = sum(alpha[k] * Am[:,k]' * F[:,i]) 
-      if i in Is
-        for j in Js[Is .==i]
-          theta += tau * (R[i,j] + Um[k,i]*Vm[k,j]).*Vm[k,j]
-        end
+
+      for idx in R.colptr[i]:(R.colptr[i+1]-1)
+          j = Js[idx]
+          theta += tau * (R.nzval[idx] + Um[k,i]*Vm[k,j]).*Vm[k,j]
       end
+
       Um[k,i] = Uv[k,i] * theta
-      if i in Is
-        for j in Js[Is .== i]
-          R[i,j] = R[i,j] - (Um[k,i]-tmp)*Vm[k,j]
-        end
+
+      for idx in R.colptr[i]:(R.colptr[i+1]-1)
+        j = Js[idx]
+        R.nzval[idx] -= (Um[k,i]-tmp)*Vm[k,j]
       end
     end
   end 
@@ -69,13 +70,14 @@ function VBMF(data::RelationData;
   K=num_latent
   I=maximum(Is)
   J=maximum(Js)
-  tau = 5.0 #50.0
+  tau = 1.50 #
+  tau = 50.0
 
   n = Normal(0,1)
-  Um = rand(n,K,I)
-  Uv = ones(K,I)
-  Vm = rand(n,K,J)
-  Vv = ones(K,J)
+  Um = 0.3 * rand(n,K,I)
+  Uv = 4 * ones(K,I)
+  Vm = 0.3 * rand(n,K,J)
+  Vv = 4 * ones(K,J)
   alpha = ones(K)
   beta = ones(K)
   phiA = ones(K)
@@ -92,20 +94,22 @@ function VBMF(data::RelationData;
   end
   Mf = size(F,1)
   Mg = size(G,1)
-  Am = rand(n,Mf,K)
-  Av = zeros(Mf,K)
-  Bm = rand(n,Mg,K)
-  Bv = zeros(Mg,K)
+  Am = 0.3 * rand(n,Mf,K)
+  Av = 4 * ones(Mf,K)
+  Bm = 0.3 * rand(n,Mg,K)
+  Bv = 4 * ones(Mg,K)
   
   Fnormsq = sum(F.^2,2)
   Gnormsq = sum(G.^2,2)
 
-  R = spzeros(I,J)
-  for i in Is
-      for j in Js[Is .== i]
-        R[i,j] = X[i,j] - dot(Um[:,i],Vm[:,j])
-      end
+  V=zeros(nnz(X))
+  for idx in 1:length(Is)
+      i = Is[idx]
+      j = Js[idx]
+      V[idx] = X[i,j] - dot(Um[:,i],Vm[:,j])
+      idx=idx+1
   end
+  R = sparse(Js,Is,V)
   UR = Um - Am' * F
   VR = Vm - Bm' * G
   haveTest = numTest(rel) > 0
@@ -124,13 +128,15 @@ function VBMF(data::RelationData;
     #print ("Calc=", Um[:,rel.test_vec[1,1]]' * Vm[:,rel.test_vec[1,2]],"\n")
     #print("Prob_rat = ", probe_rat[1],"\n")
     rmse = haveTest ? sqrt(mean( (rel.test_vec[:,end] - probe_rat) .^ 2 )) : NaN
-
+    
     if verbose
-      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)),"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"|",alpha,"|",beta, "\n")
+      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)))#,"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"|",alpha,"|",beta)
+      print("\tstd=",std(rel.test_vec[:,end]))
+      print("\n")
     end
   end
 
-  print("Predicted:\n")
-  print(Um,"\n")
-  print(Vm,"\n")
+ # print("Predicted:\n")
+ # print(Um,"\n")
+ # print(Vm,"\n")
 end

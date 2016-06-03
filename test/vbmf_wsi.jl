@@ -1,8 +1,8 @@
 using BayesianDataFusion
 using Base.Test
 
-F = sprand(2,20,1.0)
-G = sprand(2,20,1.0)
+F = sprand(2,40,1.0)
+G = sprand(2,40,1.0)
 A = ones(2,2)
 A[1,1] = 2.0
 A[1,2] = 1.5
@@ -15,10 +15,10 @@ B[1,2] = 0.5
 B[2,1] = 0.5
 B[2,2] = 1.0
 
-U = A' * F + randn(2,20)/5.0
-V = B' * G + randn(2,20)/5.0
+U = A' * F + randn(2,40)/5.0
+V = B' * G + randn(2,40)/5.0
 
-Y  = sparse(U' * V + randn(20,20)/2.0)
+Y  = sparse(U' * V + randn(40,40)/50.0)
 
 print("Original:\n")
 print("U=",U,"\n")
