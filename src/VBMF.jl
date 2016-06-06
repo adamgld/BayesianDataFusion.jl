@@ -40,6 +40,28 @@ function update_link!(UR, Am::Matrix{Float64}, Av::Matrix{Float64}, phi, alpha, 
       Av[m,k] = 1/(phi[k] + alpha[k] * Fnormsq[m])
       Am[m,k] = Av[m,k] * alpha[k] * sum((UR[k,:] + Am[m,k] * F[m,:])* F[m,:]')
       UR[k,:] = UR[k,:] - (Am[m,k] - tmp) * F[m,:]
+#      print("UR=", UR,"\n")
+    end
+  end
+end
+
+function update_link_naive!(Um, Am::Matrix{Float64}, Av::Matrix{Float64}, phi, alpha, F::SparseMatrixCSC,Fnormsq)
+  M,K = size(Am)
+  _,I = size(F)
+  for m = 1:M
+    Av[m,:] = 1./ (phi + alpha * Fnormsq[m])
+    for k = 1:K
+      tmp = 0
+      for i = 1:I
+        diff = Um[k,i]
+	for e = 1:M
+	  if e!=m
+            diff -= F[e,i] * Am[e,k]
+	  end
+	end
+        tmp += diff * F[k,i]
+      end
+      Am[m,k] = Av[m,k] *tmp * alpha[k]
     end
   end
 end
@@ -49,7 +71,7 @@ function update_prior!(alpha, phi, Am, Av, Um, Uv, F::SparseMatrixCSC)
   M,_ = size(Am)
   for k=1:K
     alpha[k] = I./sum((Um[k,:] - Am[:,k]' * F).^2 + Uv[k,:] +  Av[:,k]' * (F.^2))
-    phi[k] = M./sum(Am[:,k].^2 + Av[:,k])
+    phi[k] = (M + 0.001) ./ (0.001 + sum(Am[:,k].^2 + Av[:,k]))
   end
 end
 
@@ -71,14 +93,14 @@ function VBMF(data::RelationData;
   rel = data.relations[1]
   Is = rel.data.df[1]
   Js = rel.data.df[2]
-  X = sparse(Is, Js,data.relations[1].data.df[3])
+  I = data.entities[1].count
+  J = data.entities[2].count
+  X = sparse(Is, Js,data.relations[1].data.df[3], I,J)
 
   #Initialization
   K=num_latent
-  I=maximum(Is)
-  J=maximum(Js)
-  tau = 1.50 #
-  #tau = 50.0
+  #tau = 1.50 #
+  tau = 20.0
 
   n = Normal(0,1)
   Um = 0.3 * rand(n,K,I)
@@ -91,14 +113,16 @@ function VBMF(data::RelationData;
   phiB = ones(K)
 
   #SI related
-  F = data.entities[1].F
-  G = data.entities[2].F
-  if ! data.entities[1].use_FF
+  F = data.entities[1].F'
+  G = data.entities[2].F'
+  if isempty(F)
     F = spzeros(1,I)
   end
-  if ! data.entities[2].use_FF
+  if isempty(G)
     G = spzeros(1,J)
   end
+
+  print("Size(F)=",size(F),"\n")
   Mf = size(F,1)
   Mg = size(G,1)
   Am = 0.3 * rand(n,Mf,K)
@@ -116,7 +140,7 @@ function VBMF(data::RelationData;
       V[idx] = X[i,j] - dot(Um[:,i],Vm[:,j])
       idx=idx+1
   end
-  R = sparse(Js,Is,V)
+  R = sparse(Js,Is,V,J,I)
   UR = Um - Am' * F
   VR = Vm - Bm' * G
   haveTest = numTest(rel) > 0
@@ -126,8 +150,20 @@ function VBMF(data::RelationData;
     R = R'
     update_latent!(R,Vm,Vv, beta,tau,Um,Uv,Bm,G)
     R = R'
-    update_link!(UR, Am, Av, alpha, phiA, F, Fnormsq)
-    update_link!(VR, Bm, Bv, beta, phiB, G, Gnormsq)
+  UR = Um - Am' * F
+  VR = Vm - Bm' * G
+
+    if !isempty(data.entities[1].F)
+	update_link!(UR, Am, Av, phiA, alpha, F, Fnormsq)
+	#update_link_naive!(Um, Am, Av, phiA, alpha, F, Fnormsq)
+    end
+    if !isempty(data.entities[2].F)
+        update_link!(VR, Bm, Bv, phiB, beta, G, Gnormsq)
+	#update_link_naive!(Vm, Bm, Bv, phiB, beta, G, Gnormsq)
+    end
+    print("----->", alpha,"\n")
+    print("----->", beta,"\n")
+
     update_prior!(alpha, phiA, Am, Av, Um, Uv, F)
     update_prior!(beta, phiB, Bm, Bv, Vm, Vv, G)
 
@@ -137,8 +173,9 @@ function VBMF(data::RelationData;
     rmse = haveTest ? sqrt(mean( (rel.test_vec[:,end] - probe_rat) .^ 2 )) : NaN
     
     if verbose
-      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)))#,"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"|",alpha,"|",beta)
-      print("\tstd=",std(rel.test_vec[:,end]))
+      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)),"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"\t|E[A]|=",vecnorm(Am),"\t|E[B]|=",vecnorm(Bm))
+      print("\t|phiA|=",vecnorm(phiA))
+      print("\t|phiB|=",vecnorm(phiB))
       print("\n")
     end
   end
@@ -146,4 +183,8 @@ function VBMF(data::RelationData;
  # print("Predicted:\n")
  # print(Um,"\n")
  # print(Vm,"\n")
+
+ print("Am = ", Am, "\n")
+
+ print(phiA)
 end
