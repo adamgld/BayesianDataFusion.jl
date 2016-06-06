@@ -4,6 +4,7 @@ function update_latent!(R::SparseMatrixCSC, Um, Uv, alpha, tau::Float64,Vm, Vv, 
   K,I = size(Um)
   _,J = size(Vm)
   Js,_ = findn(R)
+  AmF = Am' * F
   for i = 1:I
     for k = 1:K
       tmp = Um[k,i]
@@ -14,7 +15,7 @@ function update_latent!(R::SparseMatrixCSC, Um, Uv, alpha, tau::Float64,Vm, Vv, 
       end
       Uv[k,i] = 1/(alpha[k] + tau * Uvtmp)
 
-      theta = sum(alpha[k] * Am[:,k]' * F[:,i]) 
+      theta = sum(alpha[k] * AmF[k,i]) 
 
       for idx in R.colptr[i]:(R.colptr[i+1]-1)
           j = Js[idx]
@@ -32,14 +33,26 @@ function update_latent!(R::SparseMatrixCSC, Um, Uv, alpha, tau::Float64,Vm, Vv, 
   end 
 end
 
-function update_link!(UR, Am::Matrix{Float64}, Av::Matrix{Float64}, phi, alpha, F::SparseMatrixCSC,Fnormsq)
+function update_link!(UR, Am::Matrix{Float64}, Av::Matrix{Float64}, phi, alpha, Ft::SparseMatrixCSC,Fnormsq)
   M,K = size(Am)
   for k = 1:K
     for m = 1:M
       tmp = Am[m,k]
       Av[m,k] = 1/(phi[k] + alpha[k] * Fnormsq[m])
-      Am[m,k] = Av[m,k] * alpha[k] * sum((UR[k,:] + Am[m,k] * F[m,:])* F[m,:]')
-      UR[k,:] = UR[k,:] - (Am[m,k] - tmp) * F[m,:]
+      temp = 0.0
+      for idx = Ft.colptr[m]:(Ft.colptr[m+1]-1)
+	Fim = Ft.nzval[idx]
+        i = Ft.rowval[idx]
+        temp += UR[k,i] * Fim + Am[m,k] * Fim*Fim
+       # @time Am[m,k] = Av[m,k] * alpha[k] * sum((UR[k,:] + Am[m,k] * Ftmt)* Ftm)
+      end
+      Am[m,k] = Av[m,k] * alpha[k] * temp
+      for idx = Ft.colptr[m]:(Ft.colptr[m+1]-1)
+        Fim = Ft.nzval[idx]
+        i = Ft.rowval[idx]
+	UR[k,i] -= (Am[m,k] - tmp) *Fim
+       # @time UR[k,:] = UR[k,:] - (Am[m,k] - tmp) * Ftmt
+      end
 #      print("UR=", UR,"\n")
     end
   end
@@ -99,8 +112,9 @@ function VBMF(data::RelationData;
 
   #Initialization
   K=num_latent
-  #tau = 1.50 #
-  tau = 20.0
+  tau = 1.50 #
+ # tau = 20.0
+  tau = 5.0
 
   n = Normal(0,1)
   Um = 0.3 * rand(n,K,I)
@@ -114,7 +128,9 @@ function VBMF(data::RelationData;
 
   #SI related
   F = data.entities[1].F'
+  Ft = F'
   G = data.entities[2].F'
+  Gt = G'
   if isempty(F)
     F = spzeros(1,I)
   end
@@ -154,15 +170,15 @@ function VBMF(data::RelationData;
   VR = Vm - Bm' * G
 
     if !isempty(data.entities[1].F)
-	update_link!(UR, Am, Av, phiA, alpha, F, Fnormsq)
+	update_link!(UR, Am, Av, phiA, alpha, Ft, Fnormsq)
 	#update_link_naive!(Um, Am, Av, phiA, alpha, F, Fnormsq)
     end
     if !isempty(data.entities[2].F)
-        update_link!(VR, Bm, Bv, phiB, beta, G, Gnormsq)
+        update_link!(VR, Bm, Bv, phiB, beta, Gt, Gnormsq)
 	#update_link_naive!(Vm, Bm, Bv, phiB, beta, G, Gnormsq)
     end
-    print("----->", alpha,"\n")
-    print("----->", beta,"\n")
+ #   print("----->", alpha,"\n")
+ #   print("----->", beta,"\n")
 
     update_prior!(alpha, phiA, Am, Av, Um, Uv, F)
     update_prior!(beta, phiB, Bm, Bv, Vm, Vv, G)
@@ -184,7 +200,7 @@ function VBMF(data::RelationData;
  # print(Um,"\n")
  # print(Vm,"\n")
 
- print("Am = ", Am, "\n")
+ #print("Am = ", Am, "\n")
 
- print(phiA)
+ #print(phiA)
 end
