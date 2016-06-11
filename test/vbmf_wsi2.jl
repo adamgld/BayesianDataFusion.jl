@@ -16,11 +16,6 @@ V = [1, -1]'
 
 Y  = sparse(U' * V + 0.05 * randn(100,2))
 
-print("Original:\n")
-print("F=",F,"\n")
-
-#Y.nzval -= mean(Y.nzval)
-
 entity1 = Entity("E1", F=F')
 entity2 = Entity("E2")
 rel = Relation(Y, "rel", [entity1, entity2])

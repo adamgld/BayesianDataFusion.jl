@@ -13,8 +13,8 @@ movies = Entity("prot")#, F=data["Fv"]);
 
 ## setup the relation between users and movies, data from sparse matrix data["X"]
 ## first element in '[users, movies]' corresponds to rows and second to columns of data["X"]
-X.nzval -= mean(X.nzval)
-ratings = Relation(X, "IC50", [users, movies], class_cut = 2.5);
+ratings = Relation(X, "IC50", [users, movies], class_cut = 9 - log10(200));
+setPrecision!(ratings,5.0)
 
 ## assign 500,000 of the observed ratings randomly to the test set
 assignToTest!(ratings, 11_856)

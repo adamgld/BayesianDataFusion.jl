@@ -92,7 +92,7 @@ function pred(r::Relation, probe_vec, U, V)
   N = size(probe_vec,1)
   ret = zeros(N)
   for i = 1:N
-    ret[i] = dot(U[:,r.test_vec[i,1]],V[:,r.test_vec[i,2]])
+    ret[i] = dot(U[:,r.test_vec[i,1]],V[:,r.test_vec[i,2]]) + r.model.mean_value
   end
   return ret
 end
@@ -109,12 +109,13 @@ function VBMF(data::RelationData;
   I = data.entities[1].count
   J = data.entities[2].count
   X = sparse(Is, Js,data.relations[1].data.df[3], I,J)
+   
+  rel.model.mean_value = mean(rel.data.df[3])
+  print("Internal mean:" , rel.model.mean_value,"\n")
 
   #Initialization
   K=num_latent
-  tau = 1.50 #
- # tau = 20.0
-  tau = 5.0
+  tau = rel.model.alpha
 
   n = Normal(0,1)
   Um = 0.3 * rand(n,K,I)
@@ -153,7 +154,7 @@ function VBMF(data::RelationData;
   for idx in 1:length(Is)
       i = Is[idx]
       j = Js[idx]
-      V[idx] = X[i,j] - dot(Um[:,i],Vm[:,j])
+      V[idx] = X[i,j] - dot(Um[:,i],Vm[:,j]) - rel.model.mean_value
       idx=idx+1
   end
   R = sparse(Js,Is,V,J,I)
@@ -186,10 +187,11 @@ function VBMF(data::RelationData;
     probe_rat = pred(rel, rel.test_vec, Um,Vm)
     #print ("Calc=", Um[:,rel.test_vec[1,1]]' * Vm[:,rel.test_vec[1,2]],"\n")
     #print("Prob_rat = ", probe_rat[1],"\n")
+    #clamped_rat = isempty(clamp) ?probe_rat :makeClamped(probe_rat, clamp)
     rmse = haveTest ? sqrt(mean( (rel.test_vec[:,end] - probe_rat) .^ 2 )) : NaN
-    
+    roc = haveTest ? AUC_ROC(rel.test_label, -vec(probe_rat)) : NaN    
     if verbose
-      print("RMSE=",rmse,"\t|Res|=",sqrt(mean((R.*R).nzval)),"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"\t|E[A]|=",vecnorm(Am),"\t|E[B]|=",vecnorm(Bm))
+      print("RMSE=",rmse,"\tROC=",roc,"\t|Res|=",sqrt(mean((R.*R).nzval)),"\t|E[U]|=",vecnorm(Um),"\t|E[V]|=",vecnorm(Vm),"\t|E[A]|=",vecnorm(Am),"\t|E[B]|=",vecnorm(Bm))
       print("\t|phiA|=",vecnorm(phiA))
       print("\t|phiB|=",vecnorm(phiB))
       print("\n")
